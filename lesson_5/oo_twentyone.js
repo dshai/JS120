@@ -58,6 +58,7 @@ class Participant {
   static BUST_VAL = 21;
   constructor() {
     this.resetHand();
+    this.money = 5;
   }
 
   score() {
@@ -76,19 +77,52 @@ class Participant {
     return this.score() > Participant.BUST_VAL;
   }
 
-  addCards(cards, hidden = false) {
-    if (hidden) {
-      cards.forEach(card => card.hide());
-    }
+  addCards(cards) {
     this.hand.push(...cards);
-  }
-
-  reveal() {
-    this.hand.forEach(card => card.unHide());
   }
 
   resetHand() {
     this.hand = [];
+  }
+
+
+}
+
+class Player extends Participant {
+  constructor() {
+    super();
+    this.money = 5;
+  }
+
+  addMoney() {
+    this.money += 1;
+  }
+
+  removeMoney() {
+    this.money -= 1;
+  }
+
+  showMoney() {
+    console.log(`You have $${this.money}.`);
+  }
+
+  hasMoney() {
+    return this.money > 0;
+  }
+}
+
+class Dealer extends Participant {
+  constructor() {
+    super();
+  }
+
+  addCards(cards, hidden = false) {
+    if (hidden) cards.forEach(card => card.hide());
+    super.addCards(cards);
+  }
+
+  reveal() {
+    this.hand.forEach(card => card.unHide());
   }
 }
 
@@ -98,23 +132,29 @@ class TwentyOneGame {
   constructor() {
     this.deck = new Deck();
     this.deck.shuffle();
-    this.player = new Participant();
-    this.dealer = new Participant();
+    this.player = new Player();
+    this.dealer = new Dealer();
   }
 
   start() {
     this.displayWelcomeMessage();
 
     while (true) {
-      //console.clear();
       this.reset();
       this.dealCards();
-      //this.showCards();
-      //this.showScores();
+
       this.playerTurn();
       if (!this.player.isBusted()) this.dealerTurn();
-      this.declareWinner(this.determineWinner());
 
+      let winner = this.determineWinner();
+      this.settleMoney(winner);
+      this.declareWinner(winner);
+
+      if (!this.player.hasMoney()) {
+        console.log('Sorry, you are out of money.');
+        readline.question('Press RETURN to be escorted out of the casino.');
+        break;
+      }
       if (this.shouldQuit()) break;
     }
 
@@ -152,21 +192,24 @@ class TwentyOneGame {
     console.log('');
   }
 
+  showBoard() {
+    console.clear();
+    this.showCards();
+    this.showScores();
+    this.player.showMoney();
+    console.log('');
+  }
+
   playerTurn() {
     while (!this.player.isBusted()) {
-      console.clear();
-      this.showCards();
-      this.showScores();
-
+      this.showBoard();
       let response = this.getPlayerChoice();
 
       if (response[0] === 's') break;
       this.player.addCards(this.deck.deal(1));
     }
 
-    console.clear();
-    this.showCards();
-    this.showScores();
+    this.showBoard();
 
     if (this.player.isBusted()) {
       console.log('Sorry, player busted.\n');
@@ -192,18 +235,14 @@ class TwentyOneGame {
     this.dealer.reveal();
 
     while (this.dealer.score() < 17) {
-      console.clear();
-      this.showCards();
-      this.showScores();
+      this.showBoard();
 
       console.log('Dealer will hit.\n');
       readline.question('Press RETURN to continue.');
       this.dealer.addCards(this.deck.deal(1));
     }
 
-    console.clear();
-    this.showCards();
-    this.showScores();
+    this.showBoard();
     if (this.dealer.isBusted()) console.log('Dealer busted.');
   }
 
@@ -216,6 +255,11 @@ class TwentyOneGame {
     else winner = 'Tie';
 
     return winner;
+  }
+
+  settleMoney(winner) {
+    if (winner === 'Player') this.player.addMoney();
+    else if (winner === 'Dealer') this.player.removeMoney();
   }
 
   declareWinner(winner) {
