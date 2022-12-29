@@ -263,6 +263,7 @@ class TwentyOneGame {
   }
 
   declareWinner(winner) {
+    this.showBoard();
     if (winner === 'Tie') console.log('Its a tie!\n');
     else console.log(`${winner} has won the game!\n`);
   }
