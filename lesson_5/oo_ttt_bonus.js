@@ -326,7 +326,7 @@ class TTTGame {
   }
 
   displayMatchWinner() {
-    let matchWinner = this.isMatchWinner(this.human) ? 'Human' : 'Computer'
+    let matchWinner = this.isMatchWinner(this.human) ? 'Human' : 'Computer';
     console.log(`${matchWinner} wins the match!`);
   }
 

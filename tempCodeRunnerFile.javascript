@@ -1,363 +1,341 @@
-let readline = require("readline-sync");
+const readline = require('readline-sync');
 
-class Square {
-  static UNUSED_SQUARE = " ";
-  static HUMAN_MARKER = "X";
-  static COMPUTER_MARKER = "O";
-
-  constructor(marker = Square.UNUSED_SQUARE) {
-    this.marker = marker;
+class Card {
+  constructor(suit, value, weight) {
+    this.suit = suit;
+    this.value = value;
+    this.weight = weight;
+    this.hidden = false;
   }
 
-  getMarker() {
-    return this.marker;
+  static suits = ["Spades", "Hearts", "Diamonds", "Clubs"];
+  static values = [
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "J",
+    "Q",
+    "K",
+    "A"
+  ];
+
+  getWeight() {
+    return this.weight;
   }
 
-  setMarker(marker) {
-    this.marker = marker;
+  getValue() {
+    return this.value;
+  }
+
+  getSuit() {
+    return this.suit;
+  }
+
+  hide() {
+    this.hidden = true;
+  }
+
+  isHidden() {
+    return this.hidden;
+  }
+
+  reveal() {
+    this.hidden = false;
   }
 
   toString() {
-    return this.marker;
+    if (this.isHidden()) return '[ ? | Face Down ]';
+    return `[ ${this.getValue()} | ${this.getSuit()} ]`;
   }
 
-  isUnused() {
-    return this.marker === Square.UNUSED_SQUARE;
-  }
 }
 
-class Board {
+class Deck {
   constructor() {
-    this.reset();
-  }
+    this.cards = [];
 
-  reset() {
-    this.squares = {};
-    for (let counter = 1; counter <= 9; ++counter) {
-      this.squares[counter] = new Square();
-    }
-  }
+    Card.suits.forEach(suit => {
+      Card.values.forEach(value => {
+        let weight;
 
-  display() {
-    console.log("");
-    console.log("     |     |");
-    console.log(`  ${this.squares[1]}  |  ${this.squares[2]}  |  ${this.squares[3]}`);
-    console.log("     |     |");
-    console.log("-----+-----+-----");
-    console.log("     |     |");
-    console.log(`  ${this.squares[4]}  |  ${this.squares[5]}  |  ${this.squares[6]}`);
-    console.log("     |     |");
-    console.log("-----+-----+-----");
-    console.log("     |     |");
-    console.log(`  ${this.squares[7]}  |  ${this.squares[8]}  |  ${this.squares[9]}`);
-    console.log("     |     |");
-    console.log("");
-  }
+        if (/[JQK]/g.test(value)) weight = 10;
+        else if (value === 'A') weight = 11;
+        else weight = Number(value);
 
-  displayWithClear() {
-    console.clear();
-    console.log("");
-    console.log("");
-    this.display();
-  }
+        let card = new Card(suit, value, weight);
 
-  isFull() {
-    return this.unusedSquares().length === 0;
-  }
-
-  isUnusedSquare(key) {
-    return this.squares[key].isUnused();
-  }
-
-  unusedSquares() {
-    let keys = Object.keys(this.squares);
-    return keys.filter(key => this.isUnusedSquare(key));
-  }
-
-  countMarkersFor(player, keys) {
-    let markers = keys.filter(key => {
-      return this.squares[key].getMarker() === player.getMarker();
+        this.cards.push(card);
+      });
     });
-
-    return markers.length;
   }
 
-  markSquareAt(key, marker) {
-    this.squares[key].setMarker(marker);
+  static MIN_CARDS = 13
+
+  deal() {
+    return this.cards.pop();
+  }
+
+  dealFaceDown() {
+    let card = this.cards.pop();
+    card.hide();
+    return card;
+  }
+
+  getCards() {
+    return this.cards;
+  }
+
+  shuffle() {
+    for (let idx = this.cards.length - 1; idx > 0; idx--) {
+      let randIdx = Math.floor(Math.random() * (idx + 1));
+      [this.cards[idx], this.cards[randIdx]] =
+      [this.cards[randIdx], this.cards[idx]];
+    }
+  }
+
+  getCardsLeft() {
+    return this.cards.length;
   }
 }
 
-class Player {
-  constructor(marker) {
-    this.marker = marker;
-    this.score = 0;
-  }
-
-  getMarker() {
-    return this.marker;
-  }
-
-  getScore() {
-    return this.score;
-  }
-
-  incrementScore() {
-    this.score += 1;
-  }
-}
-
-class Human extends Player {
+class Participant {
   constructor() {
-    super(Square.HUMAN_MARKER);
+    this.hand = [];
+  }
+
+  showHand(hand) {
+    let string = "";
+    hand.forEach(card => {
+      string += `${card}\n`;
+    });
+    return string.slice(0, string.length - 1) + `\n\n=> (Score: ${this.score()})\n`;
+  }
+
+  revealHand() {
+    this.hand.forEach(card => card.reveal());
+  }
+
+  hit(dealMethod) {
+    this.hand.push(dealMethod);
+  }
+
+  stay() {
+    return true;
+  }
+
+  isBusted() {
+    return this.score() > TwentyOneGame.MAX_SCORE;
+  }
+
+  score() {
+    let cards = this.hand;
+    let score = cards.reduce((sum, card) => {
+      return !card.isHidden() ? sum + card.getWeight() : sum + 0;
+    }, 0);
+
+    cards.filter(card => card.getValue() === 'A' && !card.isHidden())
+      .forEach(() => {
+        if (score > TwentyOneGame.MAX_SCORE) {
+          score -= 10;
+        }
+      });
+    return score;
+  }
+
+  getHand() {
+    return this.hand;
   }
 }
 
-class Computer extends Player {
+
+class Player extends Participant {
   constructor() {
-    super(Square.COMPUTER_MARKER);
+    super();
   }
 }
 
-class TTTGame {
-  static MATCH_GOAL = 3;
-  static POSSIBLE_WINNING_ROWS = [
-    [ "1", "2", "3" ],            // top row of board
-    [ "4", "5", "6" ],            // center row of board
-    [ "7", "8", "9" ],            // bottom row of board
-    [ "1", "4", "7" ],            // left column of board
-    [ "2", "5", "8" ],            // middle column of board
-    [ "3", "6", "9" ],            // right column of board
-    [ "1", "5", "9" ],            // diagonal: top-left to bottom-right
-    [ "3", "5", "7" ],            // diagonal: bottom-left to top-right
-  ];
-
+class Dealer extends Participant {
   constructor() {
-    this.board = new Board();
-    this.human = new Human();
-    this.computer = new Computer();
-    this.firstPlayer = this.human;
+    super();
   }
 
-  play() {
+  static TARGET_SCORE = 17;
+}
+
+class TwentyOneGame {
+  constructor() {
+    this.player = new Player();
+    this.dealer = new Dealer();
+    this.deck = new Deck();
+  }
+
+  static MAX_SCORE = 21;
+
+  startRound() {
+    this.replaceLowDeck();
+    this.resetRound();
+    this.dealCards();
+    this.showCards();
+    this.playerTurn();
+    this.dealerTurn();
+    this.displayResult();
+  }
+
+  start() {
+    //SPIKE
     this.displayWelcomeMessage();
-    this.playMatch();
-    this.displayGoodbyeMessage();
-  }
-
-  playMatch() {
-    console.log(`First player to win ${TTTGame.MATCH_GOAL} games wins the match.`);
+    this.deck.shuffle();
 
     while (true) {
-      this.playOneGame();
-      this.updateMatchScore();
-      this.displayMatchScore();
-
-      if (this.matchOver()) break;
+      this.startRound();
       if (!this.playAgain()) break;
-      this.firstPlayer = this.togglePlayer(this.firstPlayer);
     }
 
-    this.displayMatchResults();
-  }
-
-  playOneGame() {
-    let currentPlayer = this.firstPlayer;
-
-    this.board.reset();
-    this.board.display();
-
-    while (true) {
-      this.playerMoves(currentPlayer);
-      if (this.gameOver()) break;
-
-      this.board.displayWithClear();
-      currentPlayer = this.togglePlayer(currentPlayer);
-    }
-
-    this.board.displayWithClear();
-    this.displayResults();
-  }
-
-  playAgain() {
-    let answer;
-
-    while (true) {
-      answer = readline.question("Play again (y/n)? ").toLowerCase();
-
-      if (["y", "n"].includes(answer)) break;
-
-      console.log("Sorry, that's not a valid choice.");
-      console.log("");
-    }
-
-    console.clear();
-    return answer === "y";
+    this.displayGoodbyeMessage();
   }
 
   displayWelcomeMessage() {
     console.clear();
-    console.log("Welcome to Tic Tac Toe!");
-    console.log("");
+    this.prompt('Welcome to the game of Twenty-One!\n');
+    console.log('-- Rules --');
+    console.log('1. This game is a 1 v 1 against the dealer.\n');
+    console.log('2. The aim is to get a higher score than the dealer whie not going over 21 (busting).\n');
+    console.log(
+      '3. Note: Face cards (J --> K) worth 10 points. Ace worth 11 or 1.\n'
+    );
+    console.log('-- End --\n\n');
+
+    this.prompt('Press any key to begin');
+    readline.question();
+
   }
 
-  displayGoodbyeMessage() {
-    console.log("Thanks for playing Tic Tac Toe! Goodbye!");
-  }
+  dealCards() {
+    const playerHand = this.player.getHand();
+    const dealerHand = this.dealer.getHand();
 
-  displayResults() {
-    if (this.isWinner(this.human)) {
-      console.log("You won! Congratulations!");
-    } else if (this.isWinner(this.computer)) {
-      console.log("I won! I won! Take that, human!");
-    } else {
-      console.log("A tie game. How boring.");
+    for (let cnt = 0; cnt < 4; cnt++) {
+      if (cnt % 2 === 0) playerHand.push(this.deck.deal());
+      else if (cnt === 3) dealerHand.push(this.deck.dealFaceDown());
+      else dealerHand.push(this.deck.deal());
     }
   }
 
-  displayMatchScore() {
-    let human = this.human.getScore();
-    let computer = this.computer.getScore();
-    console.log(`Current match score: [you: ${human}] [computer: ${computer}]`);
+  showCards() {
+    const playerHand = this.player.getHand();
+    const dealerHand = this.dealer.getHand();
+
+    console.log('');
+    this.prompt(`Your cards:\n\n${this.player.showHand(playerHand)} \n`);
+    this.prompt(`Dealer's cards:\n\n${this.dealer.showHand(dealerHand)} \n`);
+    console.log('');
+
   }
 
-  displayMatchResults() {
-    if (this.human.getScore() > this.computer.getScore()) {
-      console.log("You won this match! Congratulations!");
-    } else if (this.human.getScore() < this.computer.getScore()) {
-      console.log("Oh, boo hoo. You lost the match!");
+  showFinalCards() {
+    console.clear();
+    this.dealer.revealHand();
+    this.showCards();
+  }
+
+  playerTurn() {
+    let choice;
+
+    while (!this.player.isBusted()) {
+      choice = readline.question('Do you want to (h)it, or (s)tay? ');
+      if (['h', 'H', 'hit'].includes(choice)) this.player.hit(this.deck.deal());
+      if (['s', 'S', 'stay'].includes(choice)) break;
+
+      console.clear();
+      this.showCards();
     }
   }
 
-  togglePlayer(player) {
-    return player === this.human ? this.computer : this.human;
+  dealerContinue() {
+    readline.question('Press Return to continue...');
   }
 
-  playerMoves(currentPlayer) {
-    if (currentPlayer === this.human) {
-      this.humanMoves();
-    } else {
-      this.computerMoves();
+  dealerTurn() {
+    while (
+      this.dealer.score() < Dealer.TARGET_SCORE &&
+      (!this.player.isBusted())
+    ) {
+      this.dealerContinue();
+      this.dealer.hit(this.deck.deal());
+
+      console.clear();
+      this.showFinalCards();
     }
   }
 
-  humanMoves() {
+  playAgain() {
     let choice;
 
     while (true) {
-      let validChoices = this.board.unusedSquares();
-      const prompt = `Choose a square (${TTTGame.joinOr(validChoices)}): `;
-      choice = readline.question(prompt);
-
-      if (validChoices.includes(choice)) break;
-
-      console.log("Sorry, that's not a valid choice.");
-      console.log("");
+      choice = readline.question('Do you want to play another game? (y or n) ');
+      console.log('');
+      if (['n', 'no', 'y', 'yes'].includes(choice)) break;
     }
-
-    this.board.markSquareAt(choice, this.human.getMarker());
+    return ['y', 'yes'].includes(choice);
   }
 
-  computerMoves() {
-    let choice = this.offensiveComputerMove();
-    if (!choice) {
-      choice = this.defensiveComputerMove();
-    }
+  winner() {
+    if (this.player.isBusted()) return this.dealer;
+    if (this.dealer.isBusted()) return this.player;
 
-    if (!choice) {
-      choice = this.pickCenterSquare();
-    }
-
-    if (!choice) {
-      choice = this.pickRandomSquare();
-    }
-
-    this.board.markSquareAt(choice, this.computer.getMarker());
-  }
-
-  defensiveComputerMove() {
-    return this.findCriticalSquare(this.human);
-  }
-
-  offensiveComputerMove() {
-    return this.findCriticalSquare(this.computer);
-  }
-
-  findCriticalSquare(player) {
-    for (let index = 0; index < TTTGame.POSSIBLE_WINNING_ROWS.length; ++index) {
-      let row = TTTGame.POSSIBLE_WINNING_ROWS[index];
-      let key = this.criticalSquare(row, player);
-      if (key) return key;
-    }
+    if (this.player.score() > this.dealer.score()) return this.player;
+    if (this.player.score() < this.dealer.score()) return this.dealer;
 
     return null;
   }
 
-  criticalSquare(row, player) {
-    if (this.board.countMarkersFor(player, row) === 2) {
-      let index = row.findIndex(key => this.board.isUnusedSquare(key));
-      if (index >= 0) return row[index];
-    }
-
-    return null;
+  resetRound() {
+    console.clear();
+    this.player.hand = [];
+    this.dealer.hand = [];
   }
 
-  pickCenterSquare() {
-    return this.board.isUnusedSquare("5") ? "5" : null;
-  }
+  replaceLowDeck() {
+    let cardsLeft = this.deck.getCardsLeft();
 
-  pickRandomSquare() {
-    let validChoices = this.board.unusedSquares();
-    let choice;
-
-    do {
-      choice = Math.floor((9 * Math.random()) + 1).toString();
-    } while (!validChoices.includes(choice));
-
-    return choice;
-  }
-
-  gameOver() {
-    return this.board.isFull() || this.someoneWon();
-  }
-
-  someoneWon() {
-    return this.isWinner(this.human) || this.isWinner(this.computer);
-  }
-
-  isWinner(player) {
-    return TTTGame.POSSIBLE_WINNING_ROWS.some(row => {
-      return this.board.countMarkersFor(player, row) === 3;
-    });
-  }
-
-  matchOver() {
-    return this.isMatchWinner(this.human) || this.isMatchWinner(this.computer);
-  }
-
-  isMatchWinner(player) {
-    return player.getScore() >= TTTGame.MATCH_GOAL;
-  }
-
-  updateMatchScore() {
-    if (this.isWinner(this.human)) {
-      this.human.incrementScore();
-    } else if (this.isWinner(this.computer)) {
-      this.computer.incrementScore();
+    if (cardsLeft < Deck.MIN_CARDS) {
+      this.deck = new Deck();
     }
   }
 
-  static joinOr(choices, separator = ', ', conjunction = 'or') {
-    if (choices.length === 1) {
-      return choices[0].toString();
-    }  else if (choices.length === 2) {
-      return `${choices[0]} ${conjunction} ${choices[1]}`;
-    } else {
-      let lastChoice = choices[choices.length - 1];
-      let result = choices.slice(0, -1).join(separator);
-      return `${result}${separator} ${conjunction} ${lastChoice}`;
-    }
+  displayResult() {
+    this.showFinalCards();
+    console.log('\n');
+
+    let playerScore = this.player.score();
+    let dealerScore = this.dealer.score();
+
+    console.log('');
+    this.prompt(`Your score is ${playerScore}`);
+    this.prompt(`The Dealer's Score is ${dealerScore}\n`);
+
+    if (this.player.isBusted()) this.prompt('Whoops! You busted!\n');
+    if (this.dealer.isBusted()) this.prompt('The dealer busted!!');
+
+    if (this.winner() === this.player) this.prompt('You won!!!\n');
+    if (this.winner() === this.dealer) this.prompt('The Dealer won. You lose...');
+    if (this.winner() === null) this.prompt(`Wow, it's a tie!`);
+  }
+
+  displayGoodbyeMessage() {
+    this.prompt('Thank you for playing the game Twenty One!');
+  }
+
+  prompt(string) {
+    console.log('=> ' + string);
   }
 }
 
-let game = new TTTGame();
-game.play();
+let game = new TwentyOneGame();
+game.start();

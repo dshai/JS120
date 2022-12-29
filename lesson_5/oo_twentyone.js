@@ -9,8 +9,8 @@ class Card {
   }
 
   toString() {
-    if (this.hidden) return '[?]';
-    else return '[' + this.rank + ']';
+    if (this.hidden) return '[??]';
+    else return '[' + this.rank + '/' + this.suit + ']';
   }
 
   hide() {
@@ -26,17 +26,23 @@ class Deck {
   static RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
   static SUITS = ['H','S','C','D'];
   constructor() {
-    this.cards = [];
-    Deck.SUITS.forEach(suit => {
-      Deck.RANKS.forEach(rank => {
-        let card = new Card(rank, suit, Number(rank.replace('A','11').replace(/[JQK]/g,'10')));
-        this.cards.push(card);
-      });
-    });
+    this.refill();
+    this.shuffle();
   }
 
   deal(numCards) {
     return this.cards.splice(0, numCards);
+  }
+
+  refill() {
+    this.cards = [];
+    Deck.SUITS.forEach(suit => {
+      Deck.RANKS.forEach(rank => {
+        let score = Number(rank.replace('A','11').replace(/[JQK]/g,'10'));
+        let card = new Card(rank, suit, score);
+        this.cards.push(card);
+      });
+    });
   }
 
   shuffle() {
@@ -70,34 +76,19 @@ class Participant {
     return this.score() > Participant.BUST_VAL;
   }
 
-  hit() {
-    // STUB
+  addCards(cards, hidden = false) {
+    if (hidden) {
+      cards.forEach(card => card.hide());
+    }
+    this.hand.push(...cards);
+  }
+
+  reveal() {
+    this.hand.forEach(card => card.unHide());
   }
 
   resetHand() {
     this.hand = [];
-  }
-}
-
-class Player extends Participant {
-  constructor() {
-    super();
-  }
-}
-
-class Dealer extends Participant {
-  constructor() {
-    super();
-  }
-
-  hide() {
-    //STUB
-  }
-
-  reveal() {
-    this.hand.forEach(card => {
-      card.hidden = false;
-    });
   }
 }
 
@@ -107,21 +98,21 @@ class TwentyOneGame {
   constructor() {
     this.deck = new Deck();
     this.deck.shuffle();
-    this.player = new Player();
-    this.dealer = new Dealer();
+    this.player = new Participant();
+    this.dealer = new Participant();
   }
 
   start() {
     this.displayWelcomeMessage();
 
     while (true) {
-      console.clear();
-      this.resetParticipants();
+      //console.clear();
+      this.reset();
       this.dealCards();
-      this.showCards();
-      this.showScores();
+      //this.showCards();
+      //this.showScores();
       this.playerTurn();
-      this.dealerTurn();
+      if (!this.player.isBusted()) this.dealerTurn();
       this.declareWinner(this.determineWinner());
 
       if (this.shouldQuit()) break;
@@ -130,23 +121,23 @@ class TwentyOneGame {
     this.displayGoodbyeMessage();
   }
 
-  resetParticipants() {
+  reset() {
     this.player.resetHand();
     this.dealer.resetHand();
+    this.deck.refill();
+    this.deck.shuffle();
   }
+
   dealCards() {
-    this.player.hand = this.player.hand.concat(this.deck.deal(2));
-    this.dealer.hand = this.dealer.hand.concat(this.deck.deal(2));
-    this.dealer.hand.forEach((card, idx) => {
-      if (idx > 0) card.hide();
-    });
+    this.player.addCards(this.deck.deal(2));
+    this.dealer.addCards(this.deck.deal(1));
+    this.dealer.addCards(this.deck.deal(1), true);
   }
 
   showCards() {
-    let playerHand = this.player.hand.map(card => card.toString()).join('');
-    let dealerHand = this.dealer.hand.map(card => card.toString()).join('');
+    let playerHand = this.player.hand.join('');
+    let dealerHand = this.dealer.hand.join('');
 
-    console.log('');
     console.log('Player hand: ' + playerHand);
     console.log('Dealer hand: ' + dealerHand);
     console.log('');
@@ -156,7 +147,6 @@ class TwentyOneGame {
     let playerScore = this.player.score();
     let dealerScore = this.dealer.score();
 
-    console.log('');
     console.log('Player score: ' + playerScore);
     console.log('Dealer score: ' + dealerScore);
     console.log('');
@@ -164,22 +154,24 @@ class TwentyOneGame {
 
   playerTurn() {
     while (!this.player.isBusted()) {
+      console.clear();
+      this.showCards();
+      this.showScores();
+
       let response = this.getPlayerChoice();
 
       if (response[0] === 's') break;
-      this.player.hand.push(...this.deck.deal(1));
-      console.clear();
-      this.showCards();
-      this.showScores();
+      this.player.addCards(this.deck.deal(1));
     }
 
+    console.clear();
+    this.showCards();
+    this.showScores();
+
     if (this.player.isBusted()) {
-      console.clear();
-      this.showCards();
-      this.showScores();
-      console.log('Sorry, player busted.');
+      console.log('Sorry, player busted.\n');
     } else {
-      console.log('You chose to stay!');
+      console.log('You chose to stay!\n');
     }
   }
 
@@ -196,36 +188,39 @@ class TwentyOneGame {
   }
 
   dealerTurn() {
-    readline.question('Press RETURN/ENTER to proceed to dealer turn.');
+    readline.question('Press RETURN to reveal dealer card.');
     this.dealer.reveal();
+
     while (this.dealer.score() < 17) {
-      this.dealer.hand.push(...this.deck.deal(1));
+      console.clear();
+      this.showCards();
+      this.showScores();
+
+      console.log('Dealer will hit.\n');
+      readline.question('Press RETURN to continue.');
+      this.dealer.addCards(this.deck.deal(1));
     }
 
     console.clear();
     this.showCards();
     this.showScores();
-
-    if (this.dealer.isBusted()) {
-      console.log('Dealer busted.');
-    }
+    if (this.dealer.isBusted()) console.log('Dealer busted.');
   }
 
   determineWinner() {
     let winner;
     if (this.player.isBusted()) winner = 'Dealer';
     else if (this.dealer.isBusted()) winner = 'Player';
-    else if (this.player.score() > this.dealer.score()) {
-      winner = 'Player';
-    } else {
-      winner = 'Dealer';
-    }
+    else if (this.player.score() > this.dealer.score()) winner = 'Player';
+    else if (this.dealer.score() > this.player.score()) winner = 'Dealer';
+    else winner = 'Tie';
 
     return winner;
   }
 
   declareWinner(winner) {
-    console.log(`${winner} has won the game!`);
+    if (winner === 'Tie') console.log('Its a tie!\n');
+    else console.log(`${winner} has won the game!\n`);
   }
 
   shouldQuit() {
@@ -242,15 +237,14 @@ class TwentyOneGame {
 
   displayWelcomeMessage() {
     console.clear();
-    console.log('Welcome to Twenty-One');
-    readline.question('Press RETURN/ENTER to begin playing');
-    console.clear();
+    console.log('Welcome to Twenty-One!\n');
+    readline.question('Press RETURN to begin playing');
   }
 
   displayGoodbyeMessage() {
+    console.clear();
     console.log('Thanks for playing!');
   }
-
 }
 
 let game = new TwentyOneGame();
