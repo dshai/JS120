@@ -58,10 +58,10 @@ class Participant {
   static BUST_VAL = 21;
   constructor() {
     this.resetHand();
-    this.money = 5;
+    this.score = 0;
   }
 
-  score() {
+  updateScore() {
     let points;
     if (this.hand.some(card => card.hidden)) points = '(hidden)';
     else points = this.hand.reduce((prev, card) => prev + card.points, 0);
@@ -70,11 +70,12 @@ class Participant {
       if (points > Participant.BUST_VAL) points -= 10;
     });
 
-    return points;
+    //return points;
+    this.score = points;
   }
 
   isBusted() {
-    return this.score() > Participant.BUST_VAL;
+    return this.score > Participant.BUST_VAL;
   }
 
   addCards(cards) {
@@ -121,7 +122,7 @@ class Dealer extends Participant {
     super.addCards(cards);
   }
 
-  reveal() {
+  revealHand() {
     this.hand.forEach(card => card.unHide());
   }
 }
@@ -141,7 +142,7 @@ class TwentyOneGame {
 
     while (true) {
       this.reset();
-      this.dealCards();
+      this.dealInitialHand();
 
       this.playerTurn();
       if (!this.player.isBusted()) this.dealerTurn();
@@ -168,10 +169,14 @@ class TwentyOneGame {
     this.deck.shuffle();
   }
 
-  dealCards() {
+  dealInitialHand() {
     this.player.addCards(this.deck.deal(2));
     this.dealer.addCards(this.deck.deal(1));
-    this.dealer.addCards(this.deck.deal(1), true);
+    let hiddenCard = true;
+    this.dealer.addCards(this.deck.deal(1), hiddenCard);
+
+    this.player.updateScore();
+    this.dealer.updateScore();
   }
 
   showCards() {
@@ -184,11 +189,11 @@ class TwentyOneGame {
   }
 
   showScores() {
-    let playerScore = this.player.score();
-    let dealerScore = this.dealer.score();
+    // let playerScore = this.player.score;
+    // let dealerScore = this.dealer.score;
 
-    console.log('Player score: ' + playerScore);
-    console.log('Dealer score: ' + dealerScore);
+    console.log('Player score: ' + this.player.score);
+    console.log('Dealer score: ' + this.dealer.score);
     console.log('');
   }
 
@@ -207,6 +212,7 @@ class TwentyOneGame {
 
       if (response[0] === 's') break;
       this.player.addCards(this.deck.deal(1));
+      this.player.updateScore();
     }
 
     this.showBoard();
@@ -232,14 +238,16 @@ class TwentyOneGame {
 
   dealerTurn() {
     readline.question('Press RETURN to reveal dealer card.');
-    this.dealer.reveal();
+    this.dealer.revealHand();
+    this.dealer.updateScore();
 
-    while (this.dealer.score() < 17) {
+    while (this.dealer.score < 17) {
       this.showBoard();
 
       console.log('Dealer will hit.\n');
       readline.question('Press RETURN to continue.');
       this.dealer.addCards(this.deck.deal(1));
+      this.dealer.updateScore();
     }
 
     this.showBoard();
@@ -250,8 +258,8 @@ class TwentyOneGame {
     let winner;
     if (this.player.isBusted()) winner = 'Dealer';
     else if (this.dealer.isBusted()) winner = 'Player';
-    else if (this.player.score() > this.dealer.score()) winner = 'Player';
-    else if (this.dealer.score() > this.player.score()) winner = 'Dealer';
+    else if (this.player.score > this.dealer.score) winner = 'Player';
+    else if (this.dealer.score > this.player.score) winner = 'Dealer';
     else winner = 'Tie';
 
     return winner;
